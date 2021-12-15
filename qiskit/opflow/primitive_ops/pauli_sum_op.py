@@ -135,7 +135,22 @@ class PauliSumOp(PrimitiveOp):
             )
 
         return SummedOp([self, other])
-
+    # Flatten self to a SummedOp of Paulis
+    def flatten_op(self) -> SummedOp:
+        """Flatten nested PauliSumOp into one SummedOp
+        Traverse a PauliSumOp that may be nested with other PauliSumOps
+        recursively and return a single SummedOp object.  (i.e. distribute
+        Pauli operators that are multiplied by other Paulis)
+        """
+        ops = []
+        for op in self:
+            if len(op) > 1:
+                ops_tmp = op.flatten_op()
+                ops.extend(ops_tmp)
+            else:
+                ops.append(op.to_pauli_op())
+        return SummedOp(ops)
+        
     def mul(self, scalar: Union[complex, ParameterExpression]) -> OperatorBase:
         if isinstance(scalar, (int, float, complex)) and scalar != 0:
             return PauliSumOp(scalar * self.primitive, coeff=self.coeff)
