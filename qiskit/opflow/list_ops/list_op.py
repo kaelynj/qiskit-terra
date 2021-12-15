@@ -215,6 +215,18 @@ class ListOp(OperatorBase):
             [op.adjoint() for op in self.oplist], coeff=self.coeff.conjugate(), abelian=self.abelian
         )
 
+    def flatten(self):
+        """Convert any PauliSumOp objects into SummedOps within an operator"""
+        for i, op in enumerate(self._oplist):
+            if op.primitive_strings() == {"SparsePauliOp"}:
+                self._oplist[i] = op.to_pauli_op()
+            else:
+                try:
+                    if len(op) > 1:
+                        op.flatten()
+                except: TypeError
+        return self
+
     def traverse(
         self, convert_fn: Callable, coeff: Optional[Union[complex, ParameterExpression]] = None
     ) -> "ListOp":
