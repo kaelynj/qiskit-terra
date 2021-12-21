@@ -216,16 +216,43 @@ class ListOp(OperatorBase):
         )
 
     def flatten(self):
-        """Convert any PauliSumOp objects into SummedOps within an operator"""
+        """Flatten a nested ListOp object by expanding any PauliSumOp or SummedOps it finds."""
+        from .summed_op import SummedOp
+        from ..primitive_ops import PauliSumOp
         for i, op in enumerate(self._oplist):
             if op.primitive_strings() == {"SparsePauliOp"}:
-                self._oplist[i] = op.to_pauli_op()
-            else:
-                try:
-                    if len(op) > 1:
-                        op.flatten()
-                except: TypeError
+                op = op.to_pauli_op()
+                self._oplist[i] = op
+            if isinstance(op, SummedOp):
+                flat_sum = self.coeff*self._recursive_flatten(op, self.coeff)
+                self._oplist[i] = flat_sum
+
+        #Check if a final flattening is required at the top level
+        if isinstance(self, SummedOp):
+            ops = SummedOp([])
+            for i, op in enumerate(self._oplist):
+                if isinstance(op, SummedOp):
+                    self._oplist.extend(op._oplist)
+                    del(self._oplist[i])
         return self
+
+    def _recursive_flatten(self, operator, coeff) -> "SummedOp":
+        from .summed_op import SummedOp
+        from ..primitive_ops import PauliSumOp
+        ops = SummedOp([])
+        for i, op in enumerate(operator):
+            if isinstance(op, PauliSumOp):
+                op = op.to_pauli_op()
+            if isinstance(op, SummedOp):
+                op_tmp = operator.coeff*self._recursive_flatten(op, op.coeff)
+                ops += op_tmp
+            else:
+                ops += op*operator.coeff
+        for op in ops:
+            if isinstance(op, PauliSumOp):
+                op.to_pauli_op()
+        return ops
+
 
     def traverse(
         self, convert_fn: Callable, coeff: Optional[Union[complex, ParameterExpression]] = None
